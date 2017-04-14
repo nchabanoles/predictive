@@ -8,6 +8,9 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.jdbc.core.JdbcTemplate;
+import predictive.event.FlowNodeEventLog;
+import predictive.event.ProcessInstanceEventLog;
+import predictive.event.processor.FlowNodeEventProcessor;
 
 @SpringBootApplication
 @ConfigurationProperties("application")
@@ -30,7 +33,7 @@ public class Application implements CommandLineRunner {
         log.info("Querying for archived process instances records:");
         jdbcTemplate.query(
                 "SELECT * FROM arch_process_instance", new Object[] {},
-                (rs, rowNum) -> new ProcessInstanceEventLog(rs.getLong("id"))
-        ).forEach(processInstance -> log.info(processInstance.toString()));
+                (rs, rowNum) -> new FlowNodeEventLog(rs.getLong("id"))
+        ).forEach(new FlowNodeEventProcessor());
     }
 }
