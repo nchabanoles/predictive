@@ -1,4 +1,4 @@
-package hello;
+package predictive;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,6 +31,6 @@ public class Application implements CommandLineRunner {
         jdbcTemplate.query(
                 "SELECT * FROM arch_process_instance", new Object[] {},
                 (rs, rowNum) -> new ProcessInstanceEventLog(rs.getLong("id"))
-        ).forEach(customer -> log.info(customer.toString()));
+        ).forEach(processInstance -> log.info(processInstance.toString()));
     }
 }

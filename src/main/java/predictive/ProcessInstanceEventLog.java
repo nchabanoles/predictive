@@ -1,4 +1,4 @@
-package hello;
+package predictive;
 
 public class ProcessInstanceEventLog {
     private long id;
