@@ -13,7 +13,7 @@ import predictive.event.ProcessInstanceEventLog;
 import predictive.event.processor.FlowNodeEventProcessor;
 
 @SpringBootApplication
-@ConfigurationProperties("application")
+@ConfigurationProperties("h2")
 public class Application implements CommandLineRunner {
 
     private static final Logger log = LoggerFactory.getLogger(Application.class);
@@ -28,12 +28,12 @@ public class Application implements CommandLineRunner {
     @Override
     public void run(String... strings) throws Exception {
 
-        log.info("Extracting data...");
+        log.info("Building model from data...");
 
-        log.info("Querying for archived process instances records:");
+        log.info("Querying for archived flownode instances records:");
         jdbcTemplate.query(
-                "SELECT * FROM arch_process_instance", new Object[] {},
-                (rs, rowNum) -> new FlowNodeEventLog(rs.getLong("id"))
+                "SELECT * FROM ARCH_FLOWNODE_INSTANCE", new Object[] {},
+                (rs, rowNum) -> new FlowNodeEventLog(rs.getLong("reachedstatedate"), rs.getLong("id"), rs.getString("name"), rs.getLong("rootContainerId"), rs.getString("stateName"), rs.getLong("executedbysubstitute"))
         ).forEach(new FlowNodeEventProcessor());
     }
 }
