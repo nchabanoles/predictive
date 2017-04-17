@@ -31,9 +31,13 @@ public class Application implements CommandLineRunner {
         log.info("Building model from data...");
 
         log.info("Querying for archived flownode instances records:");
+        FlowNodeEventProcessor processor = new FlowNodeEventProcessor();
         jdbcTemplate.query(
                 "SELECT * FROM ARCH_FLOWNODE_INSTANCE", new Object[] {},
                 (rs, rowNum) -> new FlowNodeEventLog(rs.getLong("reachedstatedate"), rs.getLong("id"), rs.getString("name"), rs.getLong("rootContainerId"), rs.getString("stateName"), rs.getLong("executedbysubstitute"))
-        ).forEach(new FlowNodeEventProcessor());
+        ).forEach(processor);
+
+        log.info(String.format("Processed %d events.", processor.getNumberProcessedEvents()));
+
     }
 }

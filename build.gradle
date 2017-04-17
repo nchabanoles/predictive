@@ -13,6 +13,7 @@ apply plugin: 'maven'
 apply plugin: 'eclipse'
 apply plugin: 'idea'
 apply plugin: 'org.springframework.boot'
+apply plugin: 'groovy'
 
 jar {
     baseName = 'gs-relational-data-access'
@@ -32,6 +33,11 @@ dependencies {
     compile("org.springframework:spring-jdbc")
     compile("com.h2database:h2")
     compile("com.oracle:ojdbc6:11.2.0.3")
-    testCompile("junit:junit")
+    testCompile(
+            'junit:junit',
+            'org.codehaus.groovy:groovy-all',
+            'org.spockframework:spock-core',
+            'cglib:cglib-nodep:2.2'
+    )
 }
 
