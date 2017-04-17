@@ -26,6 +26,19 @@ public class FlowNodeEventLog {
         this.userId = userId;
     }
 
+    public long getId() {
+        return id;
+    }
+
+    public long getTimeStamp() {
+        return timeStamp;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+
     @Override
     public String toString() {
         return String.format(
