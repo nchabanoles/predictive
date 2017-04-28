@@ -1,22 +1,25 @@
 package predictive.event.processor;
 
-import java.io.PrintStream;
 import java.util.function.Consumer;
 
-import predictive.event.FlowNodeEventLog;
+import predictive.event.FlowNodeCompletedEvent;
+import predictive.event.processor.collectors.ProcessStats;
 import predictive.event.processor.collectors.StatsCollector;
 
 /**
  * Created by Nicolas Chabanoles on 14/04/17.
  */
-public class FlowNodeEventProcessor implements Consumer<FlowNodeEventLog>{
+public class FlowNodeEventProcessor implements Consumer<FlowNodeCompletedEvent>{
 
 
-    private StatsCollector stats = new StatsCollector();
+    final private StatsCollector stats;
 
+    public FlowNodeEventProcessor(ProcessStats processStats, long processInstanceStartTime, long processInstanceCompletionTime) {
+        stats = new StatsCollector(processStats, processInstanceStartTime, processInstanceCompletionTime);
+    }
 
     @Override
-    public void accept(FlowNodeEventLog event) {
+    public void accept(FlowNodeCompletedEvent event) {
        stats.accept(event);
     }
 
