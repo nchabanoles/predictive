@@ -2,7 +2,8 @@ package predictive.event.processor.collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import predictive.event.FlowNodeEventLog;
+import predictive.Application;
+import predictive.event.FlowNodeCompletedEvent;
 
 import java.util.*;
 import java.util.function.Consumer;
@@ -10,69 +11,75 @@ import java.util.function.Consumer;
 /**
  * Created by Nicolas Chabanoles on 17/04/2017.
  */
-public class StatsCollector implements Consumer<FlowNodeEventLog> {
+public class StatsCollector implements Consumer<FlowNodeCompletedEvent> {
 
+    private static final Logger log = LoggerFactory.getLogger(Application.class);
 
-    private static final Logger log = LoggerFactory.getLogger(StatsCollector.class);
+    private final ProcessStats processStats;
 
     private long nbEventsProcessed = 0L;
 
-    private Map<String, FlowNodeEventLog> events = new HashMap<>();
-    private Map<String, List<Long>> sejournTimes = new HashMap<>();
+    private Map<Long, FlowNodeCompletedEvent> processInstanceEvents = new HashMap<>();
+
+    private long startDate;
+    private long completionDate;
+
+    public StatsCollector(ProcessStats processStats, long startDate, long completionDate){
+        this.processStats = processStats;
+        this.startDate = startDate;
+        this.completionDate = completionDate;
+    }
+
 
     @Override
-    public void accept(FlowNodeEventLog event) {
+    public void accept(FlowNodeCompletedEvent event) {
         if(event==null) {
             return; // ignore null event
         }
-        Long time = computeSejournTime(event);
-        storeEventAndSejournTime(event, time);
+        final Long sejournTime = computeSejournTime(processInstanceEvents.get(event.getRootProcessInstanceId()), event);
+        final Long remainingTime = computeRemainingTime(event);
+        final long elapseTime = computeElapseTime(event);
+
+        processStats.storeSejournTimeForEvent(event, sejournTime);
+        processStats.storeRemainingTimeForEvent(event, remainingTime);
+        processStats.storeElapseTimeForEvent(event, elapseTime);
+
+        log.debug(String.format("Processing event %s %d %d",event.getEventKey(), sejournTime, remainingTime));
+
+        storeEvent(event);
         nbEventsProcessed++;
-
-        printStats(nbEventsProcessed, event, time);
     }
 
-    private void printStats(long nbEventsProcessed, FlowNodeEventLog event, Long time) {
-        log.info(String.format("Event '%s' processed (#%d):\n\tSejourn time: %d\n\tVector: %s", event.getName(), nbEventsProcessed, time, sejournTimes.get(event.getName())));
-    }
+    void storeEvent(FlowNodeCompletedEvent event) {
 
-    /*
-    * Events are stored to compute sejourn times. Only previous event is necessary.
-    * The key identifier is the flow node name.
-    * TODO: Use a unique identifier instead of name. Example: FLOWNODEDEFINITIONID, or a couple (ProcessDefinitionID, name)
-     */
-    private List<Long> storeEventAndSejournTime(FlowNodeEventLog event, Long time) {
-        // Add sejourn time to vector of computed values
-        List<Long> vector = sejournTimes.getOrDefault(event.getName(), new ArrayList<>());
-        vector.add(time);
-        // Make sure the vector is persisted
-        sejournTimes.putIfAbsent(event.getName(),vector);
-
-        // Keep track of latest event for the flow node, for sejourn time computation of next event
-        events.put(event.getName(), event);
-
-        return Collections.unmodifiableList(vector);
+        // Keep track of latest event for the process instance, for sejourn time computation of next event
+        processInstanceEvents.put(event.getRootProcessInstanceId(), event);
     }
 
     /*
     * Sejourn time is the time spent in a particular state (expressed in miliseconds).
-    * The sejourn time is hence the time difference between 2 change state events for the same flow node.
-    * As the sejourn time requires 2 events to be computed, the sejourn time is 0 for the creation of the flownode (initial event)
+    * The sejourn time is hence the time difference between 2 flow node completion time.
+    * As the sejourn time requires 2 processInstanceEvents to be computed, the sejourn time is 0 for the creation of the flownode (initial event)
      */
-    private Long computeSejournTime(FlowNodeEventLog event) {
-        FlowNodeEventLog previousEvent = events.get(event.getName());
+    public Long computeSejournTime(FlowNodeCompletedEvent previousEvent, FlowNodeCompletedEvent event) {
         if(previousEvent==null) {
-            return 0L;
+            return event.getCompletionTime() - startDate;
         }
 
-        long time = event.getTimeStamp() - previousEvent.getTimeStamp();
-        if(time <=0) {
-            log.error(String.format("!!!!! Negative or null time difference for events %d (%d) and %d (%d)", previousEvent.getId(), previousEvent.getTimeStamp(), event.getId(), event.getTimeStamp()));
-        }
+        long time = event.getCompletionTime() - previousEvent.getCompletionTime();
+
         return time;
     }
 
     public long getNumberProcessedEvents() {
         return nbEventsProcessed;
+    }
+
+    public long computeRemainingTime(FlowNodeCompletedEvent event) {
+        return completionDate - event.getCompletionTime();
+    }
+
+    public long computeElapseTime(FlowNodeCompletedEvent event) {
+        return event.getCompletionTime() - startDate;
     }
 }

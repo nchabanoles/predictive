@@ -1,7 +1,6 @@
 package predictive.event.processor
 
-import org.junit.Assert
-import predictive.event.FlowNodeEventLog
+import predictive.event.FlowNodeCompletedEvent
 
 /**
  * Created by Nicolas Chabanoles on 16/04/2017.
@@ -11,16 +10,18 @@ class FlowNodeEventProcessorTest extends spock.lang.Specification {
 
         given:
         FlowNodeEventProcessor processor = new FlowNodeEventProcessor()
-        FlowNodeEventLog event = new FlowNodeEventLog(0L, 1L, "anEvent", 2L, "aState", 3L)
+        FlowNodeCompletedEvent event = new FlowNodeCompletedEvent(1L, "anEvent", 2L, 3L)
 
         expect:
         0 == processor.getNumberProcessedEvents()
 
         when:
         processor.accept(event)
+        processor.accept(event)
+        processor.accept(event)
 
         then:
-        1 == processor.getNumberProcessedEvents()
+        3 == processor.getNumberProcessedEvents()
     }
 
     def "Processor should ignore null events"() {

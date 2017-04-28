@@ -12,16 +12,14 @@ import javax.sql.DataSource;
 import java.sql.SQLException;
 
 @Configuration
+@ConfigurationProperties("oracle")
 @Conditional(OracleDatasourceNeededCondition.class)
 public class OracleConfiguration {
 
-    @Value("${spring.datasource.username}")
     private String username;
 
-    @Value("${spring.datasource.password}")
     private String password;
 
-    @Value("${spring.datasource.url}")
     private String url;
 
     public void setUsername(String username) {
