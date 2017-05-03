@@ -11,8 +11,6 @@ import predictive.event.FlowNodeCompletedEvent;
 
 public class ProcessStats {
 
-    private static final Logger log = LoggerFactory.getLogger(StatsCollector.class);
-
     Map<String, LinkedHashMap<String, List<Long>>> elapseTimes = new HashMap<>();
     Map<String, LinkedHashMap<String, List<Long>>> sejournTimes = new HashMap<>();
     Map<String, LinkedHashMap<String, List<Long>>> remainingTimes = new HashMap<>();
@@ -22,13 +20,13 @@ public class ProcessStats {
 
     public void printStats() {
         sejournTimes.entrySet().forEach(entry -> {
-            log.info(String.format("\t\t\tSejourn times for process %s :\n%s", entry.getKey(), entry.getValue()));
+            System.out.println(String.format("\t\t\tSejourn times for process %s :\n%s", entry.getKey(), entry.getValue()));
         });
         remainingTimes.entrySet().forEach(entry -> {
-            log.info(String.format("\t\t\tRemaining times for process %s :\n%s", entry.getKey(), entry.getValue()));
+            System.out.println(String.format("\t\t\tRemaining times for process %s :\n%s", entry.getKey(), entry.getValue()));
         });
         elapseTimes.entrySet().forEach(entry -> {
-            log.info(String.format("\t\t\tElapse times for process %s :\n%s", entry.getKey(), entry.getValue()));
+            System.out.println(String.format("\t\t\tElapse times for process %s :\n%s", entry.getKey(), entry.getValue()));
         });
     }
 
@@ -64,12 +62,18 @@ public class ProcessStats {
     }
 
 
-    public DescriptiveStatistics getPrediction(String processName, String stepName) {
-        DescriptiveStatistics stats = new DescriptiveStatistics();
+    public Optional<DescriptiveStatistics> getPrediction(String processName, String stepName) {
 
-        remainingTimes.get(processName).get(stepName).forEach(stats::addValue);
+        if(remainingTimes.containsKey(processName)) {
+            LinkedHashMap<String, List<Long>> steps = remainingTimes.get(processName);
+            if(steps.containsValue(stepName)) {
+                DescriptiveStatistics stats = new DescriptiveStatistics();
+                steps.get(stepName).forEach(stats::addValue);
+                return Optional.of(stats);
+            }
 
-        return stats;
+        }
+        return Optional.empty();
 
     }
 

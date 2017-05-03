@@ -1,15 +1,12 @@
 package predictive;
 
-import java.io.Console;
-import java.util.List;
-import java.util.Map;
+import java.util.Optional;
 import java.util.Scanner;
 
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -64,40 +61,74 @@ public class Application implements CommandLineRunner {
             log.debug(String.format("Process Instance %d had %d flownodes.", piel.getId(), processor.getNumberProcessedEvents()));
         });
 
-        log.info(String.format("Processed %d cases.", Application.completedCases));
-
-        processStats.printStats();
-
-        askForPrediction(processStats);
-
-
+        interpretCommand(processStats);
 
     }
 
-    private void askForPrediction(ProcessStats processStats) {
+    private void interpretCommand(ProcessStats processStats) {
 
-        log.info("Ready for prediction :-)");
+        printUsage();
 
-        log.info(String.format("Available processes and tasks: %s ", processStats.listAvailableStats()));
-
-            String processName = null;
-            String stepName = null;
+            String command;
+            boolean loop = true;
             try (Scanner scanner = new Scanner(System.in))
             {
-                while(true) {
-                    System.out.print("Process ID: ");
+                while(loop) {
+                    System.out.print("Command: ");
+                    command = scanner.next();
 
-                    // get their input as a String
-                    processName = scanner.next();
-                    System.out.print("Step Name: ");
-                    stepName = scanner.next();
-                    DescriptiveStatistics predictions = processStats.getPrediction(processName, stepName);
-                    log.info(String.format("It is more likely that your case will complete in %s milliseconds (min: %s, max: %s)", predictions.getMean(), predictions.getMin(), predictions.getMax()));
+                    switch (command){
+                        case "stats": listStats(processStats);
+                            break;
+                        case "predict": predict(processStats, scanner);
+                            break;
+                        case "quit": case "q":
+                            loop = false;
+                            break;
+                        default:
+                            System.out.println("Unknown command: " + command);
+                            printUsage();
+                            break;
+                    }
                 }
             } catch (Exception ex)
             {
                 ex.printStackTrace();
             }
 
+    }
+
+    private void printUsage() {
+        System.out.println("**************");
+        System.out.println("*** Usage: ***");
+        System.out.println("**************");
+        System.out.println("** stats: provide detailed stats of available data");
+        System.out.println("** predict: allow you to ask for prediction of case duration depending a processId and StepName");
+        System.out.println("** <anything else>: quit this program and loses all computed data (in-memory)");
+        System.out.println("*************************************************************************************************\n");
+    }
+
+    private void predict(ProcessStats processStats, Scanner scanner) {
+
+        System.out.println(String.format("Available processes and tasks: %s ", processStats.listAvailableStats()));
+
+        System.out.print("Process ID: ");
+
+        String processName = scanner.next();
+        System.out.print("Step Name: ");
+        String stepName = scanner.next();
+        Optional<DescriptiveStatistics> predictions = processStats.getPrediction(processName, stepName);
+        String message = String.format("No prediction available for process %s and task %s", processName, stepName);
+        if(predictions.isPresent()) {
+            DescriptiveStatistics stats = predictions.get();
+            message = String.format("It is more likely that your case will complete in %s milliseconds (min: %s, max: %s)", stats.getMean(), stats.getMin(), stats.getMax());
+        }
+        System.out.println(message);
+    }
+
+    private void listStats(ProcessStats processStats) {
+        System.out.println(String.format("Processed %d cases.", Application.completedCases));
+
+        processStats.printStats();
     }
 }
