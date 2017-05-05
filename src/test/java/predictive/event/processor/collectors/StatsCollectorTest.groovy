@@ -11,7 +11,7 @@ class StatsCollectorTest extends Specification {
 
         given:
         StatsCollector stats = new StatsCollector(new ProcessStats(), 1234L, 2468L)
-        FlowNodeCompletedEvent event = new FlowNodeCompletedEvent(1L, "aProcess-aStep", 2L, 3L)
+        FlowNodeCompletedEvent event = new FlowNodeCompletedEvent(0L,100L,1L, "aProcess-aStep", 2L, 3L)
 
         expect:
         0 == stats.getNumberProcessedEvents()
@@ -43,7 +43,7 @@ class StatsCollectorTest extends Specification {
 
         given:
         StatsCollector stats = new StatsCollector(new ProcessStats(), 1234L, 2468L)
-        FlowNodeCompletedEvent event = new FlowNodeCompletedEvent(1334L, "aProcess-aStep", 2L, 3L)
+        FlowNodeCompletedEvent event = new FlowNodeCompletedEvent(0L,100L,1334L, "aProcess-aStep", 2L, 3L)
 
         when:
         long sejournTime = stats.computeSejournTime(null, event)
@@ -56,8 +56,8 @@ class StatsCollectorTest extends Specification {
 
         given:
         StatsCollector stats = new StatsCollector(new ProcessStats(), 1234L, 2468L)
-        FlowNodeCompletedEvent previousEvent = new FlowNodeCompletedEvent(100L, "aProcess-aStep", 2L, 3L)
-        FlowNodeCompletedEvent event = new FlowNodeCompletedEvent(300L, "aProcess-aStep", 2L, 3L)
+        FlowNodeCompletedEvent previousEvent = new FlowNodeCompletedEvent(0L,100L,100L, "aProcess-aStep", 2L, 3L)
+        FlowNodeCompletedEvent event = new FlowNodeCompletedEvent(0L,100L,300L, "aProcess-aStep", 2L, 3L)
 
         when:
         long sejournTime = stats.computeSejournTime(previousEvent, event)
@@ -70,7 +70,7 @@ class StatsCollectorTest extends Specification {
 
         given:
         StatsCollector stats = new StatsCollector(new ProcessStats(), 1234L, 2468L)
-        FlowNodeCompletedEvent event = new FlowNodeCompletedEvent(300L, "anotherProcess-anotherStep", 2L, 3L)
+        FlowNodeCompletedEvent event = new FlowNodeCompletedEvent(0L,100L,300L, "anotherProcess-anotherStep", 2L, 3L)
 
         when:
         long remainingTime = stats.computeRemainingTime(event)
@@ -84,7 +84,7 @@ class StatsCollectorTest extends Specification {
 
         given:
         StatsCollector stats = new StatsCollector(new ProcessStats(), 1234L, 2468L)
-        FlowNodeCompletedEvent event = new FlowNodeCompletedEvent(1334L, "aProcess-aStep", 2L, 3L)
+        FlowNodeCompletedEvent event = new FlowNodeCompletedEvent(0L,100L,1334L, "aProcess-aStep", 2L, 3L)
 
         when:
         long time = stats.computeElapseTime(event)

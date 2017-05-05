@@ -3,7 +3,9 @@ package predictive;
 import java.util.Optional;
 import java.util.Scanner;
 
+import org.apache.commons.math3.distribution.TDistribution;
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
+import org.apache.commons.math3.stat.descriptive.StatisticalSummary;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,28 +14,22 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.jdbc.core.JdbcTemplate;
+
 import predictive.event.FlowNodeCompletedEvent;
-import predictive.event.ProcessInstanceEventLog;
-import predictive.event.processor.FlowNodeEventProcessor;
 import predictive.event.processor.collectors.ProcessStats;
+import predictive.event.processor.collectors.StatsCollector;
 
 @SpringBootApplication
 @ConfigurationProperties("application")
 public class Application implements CommandLineRunner {
 
     private static final Logger log = LoggerFactory.getLogger(Application.class);
-    public static final String LIST_COMPLETED_ROOT_PROCESS_INSTANCES = "SELECT * FROM ARCH_PROCESS_INSTANCE WHERE ENDDATE > 0 AND ROOTPROCESSINSTANCEID=SOURCEOBJECTID ORDER BY ARCHIVEDATE ASC"; //AND ROWNUM <= 1
-    /*
-    * Force ordering on ARCHIVEDATE.
-    * !! Attention !! in case of // or multi-instance we have completedCases of steps that are mixed !!!
-    * */
-    public static final String LIST_COMPLETED_FLOW_NODES_OF_PROCESS_INSTANCE = "SELECT * FROM ARCH_FLOWNODE_INSTANCE WHERE ROOTCONTAINERID=? AND TERMINAL=1 ORDER BY ARCHIVEDATE ASC";
+
+    private static final String LIST_FLOWNODES_OF_COMPLETED_INSTANCES = "SELECT fni.ARCHIVEDATE, fni.LOGICALGROUP1, fni.NAME, fni.ROOTCONTAINERID, fni.EXECUTEDBYSUBSTITUTE, pi.STARTEDBY, pi.STARTDATE, pi.ENDDATE FROM ARCH_PROCESS_INSTANCE pi, ARCH_FLOWNODE_INSTANCE fni WHERE fni.ROOTCONTAINERID=pi.ROOTPROCESSINSTANCEID AND pi.ENDDATE>0 AND pi.ROOTPROCESSINSTANCEID=pi.SOURCEOBJECTID AND fni.TERMINAL=1 ORDER BY pi.ARCHIVEDATE ASC";
 
     public static void main(String args[]) {
         SpringApplication.run(Application.class, args);
     }
-
-    static long completedCases = 0L;
 
     @Autowired
     JdbcTemplate jdbcTemplate;
@@ -44,25 +40,20 @@ public class Application implements CommandLineRunner {
         log.info("Building model from data...");
 
         final ProcessStats processStats = new ProcessStats();
+        extractData(processStats);
 
-        //List cases completed
-        jdbcTemplate.query(
-                LIST_COMPLETED_ROOT_PROCESS_INSTANCES, new Object[] {},
-                (rs, rowNum) -> new ProcessInstanceEventLog(rs.getLong("ARCHIVEDATE"), rs.getLong("ROOTPROCESSINSTANCEID"), rs.getLong("PROCESSDEFINITIONID"), rs.getLong("STARTEDBY"),rs.getLong("STARTDATE"),rs.getLong("ENDDATE"))
-        ).forEach(piel -> {
-            Application.completedCases++;
-            FlowNodeEventProcessor processor = new FlowNodeEventProcessor(processStats, piel.getStartTime(), piel.getCompletionTime());
-
-            jdbcTemplate.query(
-                    LIST_COMPLETED_FLOW_NODES_OF_PROCESS_INSTANCE, new Object[] {piel.getId()},
-                    (rs, rowNum) -> new FlowNodeCompletedEvent(rs.getLong("ARCHIVEDATE"), rs.getLong("LOGICALGROUP1") + "-" + rs.getString("name"), rs.getLong("rootContainerId"), rs.getLong("executedbysubstitute"))
-            ).forEach(processor);
-
-            log.debug(String.format("Process Instance %d had %d flownodes.", piel.getId(), processor.getNumberProcessedEvents()));
-        });
-
+        log.info("Model built (ready for prediction).");
         interpretCommand(processStats);
+    }
 
+    private void extractData(ProcessStats processStats) {
+
+        jdbcTemplate.query(LIST_FLOWNODES_OF_COMPLETED_INSTANCES, new Object[] {},
+                (rs, rowNum) -> new FlowNodeCompletedEvent(rs.getLong("STARTDATE"),rs.getLong("ENDDATE"),rs.getLong("ARCHIVEDATE"), rs.getLong("LOGICALGROUP1") + "-" + rs.getString("name"), rs.getLong("rootContainerId"), rs.getLong("executedbysubstitute"))
+        ).forEach(fnce -> {
+            StatsCollector processor = new StatsCollector(processStats, fnce.getCaseStartTime(),fnce.getCaseEndTime());
+            processor.accept(fnce);
+        });
     }
 
     private void interpretCommand(ProcessStats processStats) {
@@ -75,7 +66,7 @@ public class Application implements CommandLineRunner {
             {
                 while(loop) {
                     System.out.print("Command: ");
-                    command = scanner.next();
+                    command = scanner.nextLine();
 
                     switch (command){
                         case "stats": listStats(processStats);
@@ -114,21 +105,51 @@ public class Application implements CommandLineRunner {
 
         System.out.print("Process ID: ");
 
-        String processName = scanner.next();
+        String processName = scanner.nextLine();
         System.out.print("Step Name: ");
-        String stepName = scanner.next();
-        Optional<DescriptiveStatistics> predictions = processStats.getPrediction(processName, stepName);
+        String stepName = scanner.nextLine();
+
+        Optional<DescriptiveStatistics> predictions = processStats.getPrediction(processName, stepName, true);
         String message = String.format("No prediction available for process %s and task %s", processName, stepName);
-        if(predictions.isPresent()) {
+        if(predictions.isPresent() && predictions.get().getN()>1) {
             DescriptiveStatistics stats = predictions.get();
-            message = String.format("It is more likely that your case will complete in %s milliseconds (min: %s, max: %s)", stats.getMean(), stats.getMin(), stats.getMax());
+
+            long confMin = new Double(stats.getMean()).longValue() - getConfidenceIntervalWidth(stats, 0.05);
+            long confMax = new Double(stats.getMean()).longValue() + getConfidenceIntervalWidth(stats, 0.05);
+
+            String lowerBond ="before ";
+            if(confMin>0L) {
+                lowerBond = " between " + toReadableDuration(confMin) + " and ";
+            }
+            String upperBond = toReadableDuration(confMax);
+
+            message = String.format("Estimation: The case should end %s %s from now.", lowerBond, upperBond);
         }
+
         System.out.println(message);
     }
 
-    private void listStats(ProcessStats processStats) {
-        System.out.println(String.format("Processed %d cases.", Application.completedCases));
 
-        processStats.printStats();
+    private String toReadableDuration(long milliseconds) {
+        double calc;
+        calc= milliseconds/3600000d;
+        int hours = (int)calc;
+        calc = calc - hours;
+        calc = calc*60;
+        int minutes = (int)calc;
+        calc = calc - minutes;
+        calc = calc*60;
+        int seconds = (int)calc;
+        return String.format("%s hours %s minutes %s seconds", hours, minutes, seconds);
+    }
+
+    private long getConfidenceIntervalWidth(StatisticalSummary statistics, double significance) {
+        TDistribution tDist = new TDistribution(statistics.getN() - 1);
+        double a = tDist.inverseCumulativeProbability(1.0 - significance / 2);
+        return new Double(a * statistics.getStandardDeviation() / Math.sqrt(statistics.getN())).longValue();
+    }
+
+    private void listStats(ProcessStats processStats) {
+        processStats.printStats(System.out);
     }
 }

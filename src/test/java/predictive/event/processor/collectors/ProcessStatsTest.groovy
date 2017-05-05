@@ -10,9 +10,9 @@ class ProcessStatsTest extends Specification {
     def "Should store remaining times per eventKey"() {
         given:
         ProcessStats stats = new ProcessStats()
-        FlowNodeCompletedEvent firstEvent = new FlowNodeCompletedEvent(1L, "sameProcess-sameStep", 2L, 3L)
-        FlowNodeCompletedEvent secondEvent = new FlowNodeCompletedEvent(1L, "sameProcess-sameStep", 2L, 3L)
-        FlowNodeCompletedEvent anotherEvent = new FlowNodeCompletedEvent(1L, "differentProcess-differentStep", 2L, 3L)
+        FlowNodeCompletedEvent firstEvent = new FlowNodeCompletedEvent(0L,100L,1L, "sameProcess-sameStep", 2L, 3L)
+        FlowNodeCompletedEvent secondEvent = new FlowNodeCompletedEvent(0L,100L,1L, "sameProcess-sameStep", 2L, 3L)
+        FlowNodeCompletedEvent anotherEvent = new FlowNodeCompletedEvent(0L,100L,1L, "differentProcess-differentStep", 2L, 3L)
 
         List<Long> remainingTimesAnotherEvent
 

@@ -1,32 +1,31 @@
 package predictive.event.processor.collectors;
 
+import java.io.PrintStream;
 import java.util.*;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+
 import predictive.event.FlowNodeCompletedEvent;
 
 public class ProcessStats {
 
-    Map<String, LinkedHashMap<String, List<Long>>> elapseTimes = new HashMap<>();
-    Map<String, LinkedHashMap<String, List<Long>>> sejournTimes = new HashMap<>();
-    Map<String, LinkedHashMap<String, List<Long>>> remainingTimes = new HashMap<>();
+    private Map<String, LinkedHashMap<String, List<Long>>> elapseTimes = new HashMap<>();
+    private Map<String, LinkedHashMap<String, List<Long>>> sejournTimes = new HashMap<>();
+    private Map<String, LinkedHashMap<String, List<Long>>> remainingTimes = new HashMap<>();
 
     public ProcessStats() {
     }
 
-    public void printStats() {
+    public void printStats(PrintStream out) {
         sejournTimes.entrySet().forEach(entry -> {
-            System.out.println(String.format("\t\t\tSejourn times for process %s :\n%s", entry.getKey(), entry.getValue()));
+            out.println(String.format("\t\t\tSejourn times for process %s :\n%s", entry.getKey(), entry.getValue()));
         });
         remainingTimes.entrySet().forEach(entry -> {
-            System.out.println(String.format("\t\t\tRemaining times for process %s :\n%s", entry.getKey(), entry.getValue()));
+            out.println(String.format("\t\t\tRemaining times for process %s :\n%s", entry.getKey(), entry.getValue()));
         });
         elapseTimes.entrySet().forEach(entry -> {
-            System.out.println(String.format("\t\t\tElapse times for process %s :\n%s", entry.getKey(), entry.getValue()));
+            out.println(String.format("\t\t\tElapse times for process %s :\n%s", entry.getKey(), entry.getValue()));
         });
     }
 
@@ -35,7 +34,6 @@ public class ProcessStats {
     }
 
     public List<Long> storeSejournTimeForEvent(FlowNodeCompletedEvent event, Long sejournTime) {
-        // Add sejourn time to vector of computed values (ProcessDefinition-StepName scope)
         return storeTime(sejournTimes, event, sejournTime);
     }
 
@@ -61,14 +59,27 @@ public class ProcessStats {
         return Collections.unmodifiableList(vector);
     }
 
+    /**
+     * Get prediction of the remaining time of a case based on the step that last completed.
+     * @param processID The identifier of the process definition upon which we want to compute a prediction based on its statistics
+     * @param stepName The name of the last step executed in the process.
+     * @param percentile90Only When set to true, the 10% highest values are ignored as they are considered potentially to far from average value.
+     *                         Such values would badly influence statistics.
+     * @return statistics on all observed durations between the completion of the given step and the completion of the process instance (aka remaining time).
+     */
+    public Optional<DescriptiveStatistics> getPrediction(String processID, String stepName, boolean percentile90Only) {
 
-    public Optional<DescriptiveStatistics> getPrediction(String processName, String stepName) {
-
-        if(remainingTimes.containsKey(processName)) {
-            LinkedHashMap<String, List<Long>> steps = remainingTimes.get(processName);
-            if(steps.containsValue(stepName)) {
+        if(remainingTimes.containsKey(processID)) {
+            LinkedHashMap<String, List<Long>> steps = remainingTimes.get(processID);
+            if(steps.containsKey(stepName)) {
                 DescriptiveStatistics stats = new DescriptiveStatistics();
                 steps.get(stepName).forEach(stats::addValue);
+                if(percentile90Only) {
+                    // Only keep the 90 Percentile to improve robustness
+                    double p90 = stats.getPercentile(90);
+                    stats.clear();
+                    steps.get(stepName).stream().filter(l -> l<=p90).forEach(stats::addValue);
+                }
                 return Optional.of(stats);
             }
 
