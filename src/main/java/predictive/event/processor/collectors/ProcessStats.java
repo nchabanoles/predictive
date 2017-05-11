@@ -2,11 +2,11 @@ package predictive.event.processor.collectors;
 
 import java.io.PrintStream;
 import java.util.*;
-import java.util.stream.Collectors;
-import java.util.stream.LongStream;
+import java.util.stream.Stream;
 
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 
+import org.apache.commons.math3.stat.descriptive.rank.Percentile;
 import predictive.data.PercentileSampler;
 import predictive.event.FlowNodeCompletedEvent;
 
@@ -68,13 +68,14 @@ public class ProcessStats {
         String eventKey = processID+"-"+stepName;
         if(remainingTimes.containsKey(eventKey)) {
                 DescriptiveStatistics stats = new DescriptiveStatistics();
-            remainingTimes.get(eventKey).forEach(stats::addValue);
+            List<Long> items = remainingTimes.get(eventKey);
+            Stream<Long> stream = items.stream();
                 if(percentile90Only) {
                     // Only keep the 90 Percentile to improve robustness
-                    double p90 = stats.getPercentile(90);
-                    stats.clear();
-                    remainingTimes.get(eventKey).stream().filter(l -> l<=p90).forEach(stats::addValue);
+                    long maxValue = compute90Percentile(items);
+                     stream = items.stream().filter(l -> l <= maxValue);
                 }
+                stream.forEach(stats::addValue);
                 return Optional.of(stats);
         }
         return Optional.empty();
@@ -123,10 +124,6 @@ public class ProcessStats {
         // The smaller the RMSE is the better
         // Olan gets 3500
         return (long)Math.sqrt(sum / testSet.size());
-
-
-
-
     }
 
     private void logSet(String label, List<Long> set) {
@@ -138,6 +135,7 @@ public class ProcessStats {
 
     private long compute90Percentile(List<Long> items) {
         DescriptiveStatistics stats = new DescriptiveStatistics();
+        stats.setPercentileImpl(new Percentile().withEstimationType(Percentile.EstimationType.R_7));
         items.stream().forEach(stats::addValue);
         return (long)stats.getPercentile(90);
     }

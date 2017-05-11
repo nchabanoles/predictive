@@ -6,6 +6,7 @@ import java.util.Scanner;
 import org.apache.commons.math3.distribution.TDistribution;
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 import org.apache.commons.math3.stat.descriptive.StatisticalSummary;
+import org.apache.commons.math3.stat.descriptive.rank.Percentile;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -114,8 +115,8 @@ public class Application implements CommandLineRunner {
         if(predictions.isPresent() && predictions.get().getN()>1) {
             DescriptiveStatistics stats = predictions.get();
 
-            long confMin = new Double(stats.getMean()).longValue() - getConfidenceIntervalWidth(stats, 0.05);
-            long confMax = new Double(stats.getMean()).longValue() + getConfidenceIntervalWidth(stats, 0.05);
+            long confMin = new Double(stats.getMean()).longValue() - (long)(1.96*stats.getStandardDeviation());
+            long confMax = new Double(stats.getMean()).longValue() + (long)(1.96*stats.getStandardDeviation());
 
             String lowerBond ="before ";
             if(confMin>0L) {
@@ -123,12 +124,12 @@ public class Application implements CommandLineRunner {
             }
             String upperBond = toReadableDuration(confMax);
 
-            message = String.format("\nEstimation: The case should end %s %s from now.", lowerBond, upperBond);
+            message = String.format("\nEstimation: There is 95 percent chance that the case ends %s %s from now.", lowerBond, upperBond);
 
             // The smaller the RMSE is the better
             // Olan gets 3500
             long rmse = processStats.computeRMSE(processName, stepName, true);
-            message += "\nRMSE: " + toReadableDuration(rmse);
+            message += "\nPrediction: " + toReadableDuration((long)stats.getMean()) + "(+/- " + toReadableDuration(rmse) + ")";
         }
 
         System.out.println(message);
