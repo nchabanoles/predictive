@@ -3,8 +3,10 @@ package predictive.event.processor.collectors
 import predictive.event.FlowNodeCompletedEvent
 import spock.lang.Specification
 
+import java.util.stream.LongStream
+
 /**
- * Created by bonita on 24/04/17.
+ * Created by Nicolas Chabanoles on 24/04/17.
  */
 class ProcessStatsTest extends Specification {
     def "Should store remaining times per eventKey"() {
@@ -31,9 +33,19 @@ class ProcessStatsTest extends Specification {
         remainingTimesSameEvent.contains(1000L)
     }
 
-    def "PrintStats"() {
+    def "should compute RMSE"() {
+        given:
+        ArrayList<Long> dataset = Arrays.asList(21587L,57803L,28564L,35656L,26733L)
+        final long mean = 27555
+
+        expect:
+        dataset.size() == 5
+
+        when:
+        long sum = dataset.stream().reduce(0l, {acc, i -> acc + (Math.pow(mean - i,2))})
+
+        then:
+        sum == 1017878494L
     }
 
-    def "StoreSejournTime"() {
-    }
 }

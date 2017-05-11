@@ -65,7 +65,7 @@ public class Application implements CommandLineRunner {
             try (Scanner scanner = new Scanner(System.in))
             {
                 while(loop) {
-                    System.out.print("Command: ");
+                    System.out.print("\nCommand: ");
                     command = scanner.nextLine();
 
                     switch (command){
@@ -103,10 +103,10 @@ public class Application implements CommandLineRunner {
 
         System.out.println(String.format("Available processes and tasks: %s ", processStats.listAvailableStats()));
 
-        System.out.print("Process ID: ");
+        System.out.print("\nProcess ID: ");
 
         String processName = scanner.nextLine();
-        System.out.print("Step Name: ");
+        System.out.print("\nStep Name: ");
         String stepName = scanner.nextLine();
 
         Optional<DescriptiveStatistics> predictions = processStats.getPrediction(processName, stepName, true);
@@ -123,7 +123,12 @@ public class Application implements CommandLineRunner {
             }
             String upperBond = toReadableDuration(confMax);
 
-            message = String.format("Estimation: The case should end %s %s from now.", lowerBond, upperBond);
+            message = String.format("\nEstimation: The case should end %s %s from now.", lowerBond, upperBond);
+
+            // The smaller the RMSE is the better
+            // Olan gets 3500
+            long rmse = processStats.computeRMSE(processName, stepName, true);
+            message += "\nRMSE: " + toReadableDuration(rmse);
         }
 
         System.out.println(message);
