@@ -15,6 +15,6 @@ public class PostgresDatasourceNeededCondition implements Condition {
     @Override
     public boolean matches(ConditionContext context, AnnotatedTypeMetadata metadata) {
         dbVendor = context.getEnvironment().getProperty("spring.datasource.platform");
-        return "oracle".equalsIgnoreCase(dbVendor);
+        return "postgres".equalsIgnoreCase(dbVendor);
     }
 }

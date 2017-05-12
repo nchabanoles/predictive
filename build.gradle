@@ -33,6 +33,7 @@ dependencies {
     compile("org.springframework:spring-jdbc")
     compile("com.h2database:h2")
     compile("com.oracle:ojdbc6:11.2.0.3")
+    compile("postgresql:postgresql:9.1-901-1.jdbc4")
     compile("org.apache.commons:commons-math3:3.6")
     testCompile(
             'junit:junit',
