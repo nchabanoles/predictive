@@ -3,10 +3,7 @@ package predictive;
 import java.util.Optional;
 import java.util.Scanner;
 
-import org.apache.commons.math3.distribution.TDistribution;
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
-import org.apache.commons.math3.stat.descriptive.StatisticalSummary;
-import org.apache.commons.math3.stat.descriptive.rank.Percentile;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -49,7 +46,7 @@ public class Application implements CommandLineRunner {
 
     private void extractData(ProcessStats processStats) {
 
-        jdbcTemplate.query(LIST_FLOWNODES_OF_COMPLETED_INSTANCES, new Object[] {},
+        jdbcTemplate.query(LIST_FLOWNODES_OF_COMPLETED_INSTANCES.toLowerCase(), new Object[] {},
                 (rs, rowNum) -> new FlowNodeCompletedEvent(rs.getLong("STARTDATE"),rs.getLong("ENDDATE"),rs.getLong("ARCHIVEDATE"), rs.getLong("LOGICALGROUP1") + "-" + rs.getString("name"), rs.getLong("rootContainerId"), rs.getLong("executedbysubstitute"))
         ).forEach(fnce -> {
             StatsCollector processor = new StatsCollector(processStats, fnce.getCaseStartTime(),fnce.getCaseEndTime());
@@ -72,7 +69,7 @@ public class Application implements CommandLineRunner {
                     switch (command){
                         case "stats": listStats(processStats);
                             break;
-                        case "predict": predict(processStats, scanner);
+                        case "predict": askForPrediction(processStats, scanner);
                             break;
                         case "quit": case "q":
                             loop = false;
@@ -95,12 +92,16 @@ public class Application implements CommandLineRunner {
         System.out.println("*** Usage: ***");
         System.out.println("**************");
         System.out.println("** stats: provide detailed stats of available data");
-        System.out.println("** predict: allow you to ask for prediction of case duration depending a processId and StepName");
+        System.out.println("** askForPrediction: allow you to ask for prediction of case duration depending a processId and StepName");
         System.out.println("** <anything else>: quit this program and loses all computed data (in-memory)");
         System.out.println("*************************************************************************************************\n");
     }
 
-    private void predict(ProcessStats processStats, Scanner scanner) {
+    private void listStats(ProcessStats processStats) {
+        processStats.printStats(System.out);
+    }
+
+    private void askForPrediction(ProcessStats processStats, Scanner scanner) {
 
         System.out.println(String.format("Available processes and tasks: %s ", processStats.listAvailableStats()));
 
@@ -110,31 +111,48 @@ public class Application implements CommandLineRunner {
         System.out.print("\nStep Name: ");
         String stepName = scanner.nextLine();
 
-        Optional<DescriptiveStatistics> predictions = processStats.getPrediction(processName, stepName, true);
-        String message = String.format("No prediction available for process %s and task %s", processName, stepName);
-        if(predictions.isPresent() && predictions.get().getN()>1) {
-            DescriptiveStatistics stats = predictions.get();
-
-            long confMin = new Double(stats.getMean()).longValue() - (long)(1.96*stats.getStandardDeviation());
-            long confMax = new Double(stats.getMean()).longValue() + (long)(1.96*stats.getStandardDeviation());
-
-            String lowerBond ="before ";
-            if(confMin>0L) {
-                lowerBond = " between " + toReadableDuration(confMin) + " and ";
-            }
-            String upperBond = toReadableDuration(confMax);
-
-            message = String.format("\nEstimation: There is 95 percent chance that the case ends %s %s from now.", lowerBond, upperBond);
-
-            // The smaller the RMSE is the better
-            // Olan gets 3500
-            long rmse = processStats.computeRMSE(processName, stepName, true);
-            message += "\nPrediction: " + toReadableDuration((long)stats.getMean()) + "(+/- " + toReadableDuration(rmse) + ")";
-        }
+        String message = predict(processStats, processName, stepName);
 
         System.out.println(message);
     }
 
+    private String predict(ProcessStats processStats, String processName, String stepName) {
+
+        Optional<DescriptiveStatistics> predictions = processStats.getPrediction(processName, stepName, true);
+
+        String message = String.format("No prediction available for process %s and task %s", processName, stepName);
+
+        if(predictions.isPresent() && predictions.get().getN()>1) {
+            DescriptiveStatistics stats = predictions.get();
+
+            // Confidence interval: for any x in the dataset we are 95% confident that confMin < x < confMax
+            // We assume that with a big dataset, data will follow a Normal Law, as assumed in data-science
+            // In a Normal Law there is 95% chance that any value of the dataset will be
+            // between (Avg - (1.96*standard deviation)) and (Avg +(1.96*standard deviation))
+            long confMin = new Double(stats.getMean()).longValue() - (long)(1.96*stats.getStandardDeviation());
+            long confMax = new Double(stats.getMean()).longValue() + (long)(1.96*stats.getStandardDeviation());
+
+            message = buildPredictionMessage(processStats, processName, stepName, stats, confMin, confMax);
+        }
+        return message;
+    }
+
+
+    private String buildPredictionMessage(ProcessStats processStats, String processName, String stepName, DescriptiveStatistics stats, long confMin, long confMax) {
+
+        String lowerBond ="before ";
+        if(confMin>0L) {
+            lowerBond = " between " + toReadableDuration(confMin) + " and ";
+        }
+        String upperBond = toReadableDuration(confMax);
+
+        String message = String.format("\nEstimation: There is 95 percent chance that the case ends %s %s from now.", lowerBond, upperBond);
+
+        // The smaller the RMSE is, the better
+        long rmse = processStats.computeRMSE(processName, stepName, true);
+        message += "\nPrediction: " + toReadableDuration((long)stats.getMean()) + "(+/- " + toReadableDuration(rmse) + ")";
+        return message;
+    }
 
     private String toReadableDuration(long milliseconds) {
         double calc;
@@ -147,15 +165,5 @@ public class Application implements CommandLineRunner {
         calc = calc*60;
         int seconds = (int)calc;
         return String.format("%s hours %s minutes %s seconds", hours, minutes, seconds);
-    }
-
-    private long getConfidenceIntervalWidth(StatisticalSummary statistics, double significance) {
-        TDistribution tDist = new TDistribution(statistics.getN() - 1);
-        double a = tDist.inverseCumulativeProbability(1.0 - significance / 2);
-        return new Double(a * statistics.getStandardDeviation() / Math.sqrt(statistics.getN())).longValue();
-    }
-
-    private void listStats(ProcessStats processStats) {
-        processStats.printStats(System.out);
     }
 }

@@ -14,35 +14,29 @@ import org.slf4j.LoggerFactory;
 /**
  * Created by Nicolas Chabanoles on 05/05/17.
  */
-public class PercentileSampler implements Collector<Long, List<Long>, List<Long>> {
+public class Sampler implements Collector<Long, List<Long>, List<Long>> {
 
     final Random rand = new SecureRandom();
     final List<Long> omittedValues = new ArrayList<>();
     final int size;
-    private long maxValue;
     int c = 0;
 
-    public PercentileSampler(int size, long maxValue) {
+    public Sampler(int size) {
         this.size = size;
-        this.maxValue = maxValue;
     }
 
     private void addIt(final List<Long> in, Long s) {
-        if(s > maxValue) {
-            // do not keep values higher than maxValue
-            return;
-        }
-
         if (in.size() < size) {
             // ensure to have at least size elements
             in.add(s);
         }
         else {
             int replaceInIndex = (int) (rand.nextDouble() * (size + (c++) + 1));
+            Long omitted = s;
             if (replaceInIndex < size) {
-                Long omitted = in.set(replaceInIndex, s);
-                omittedValues.add(omitted);
+                omitted = in.set(replaceInIndex, s);
             }
+            omittedValues.add(omitted);
         }
     }
 

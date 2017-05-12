@@ -2,12 +2,13 @@ package predictive.event.processor.collectors;
 
 import java.io.PrintStream;
 import java.util.*;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 
 import org.apache.commons.math3.stat.descriptive.rank.Percentile;
-import predictive.data.PercentileSampler;
+import predictive.data.Sampler;
 import predictive.event.FlowNodeCompletedEvent;
 
 public class ProcessStats {
@@ -103,12 +104,13 @@ public class ProcessStats {
             // add to result sqrt(sigma20((avg(80) - item(20))²)/n(20))
 
         List<Long> items = remainingTimes.get(processID+"-"+stepName);
-        long maxValue = Long.MAX_VALUE;
         if(percentile90Only) {
-            maxValue = compute90Percentile(items);
+            long maxValue = compute90Percentile(items);
+            items = items.stream().filter(i -> i<= maxValue).collect(Collectors.toList());
         }
 
-        PercentileSampler sampler = new PercentileSampler((int) (items.size() * 0.8), maxValue);
+
+        Sampler sampler = new Sampler((int) (items.size() * 0.8));
 
         List<Long> sample = items.stream()
                 .collect(sampler);
