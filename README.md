@@ -6,7 +6,7 @@ A project to evaluate Predictive analysis on Bonita BPM process execution.
 gradlew bootRun
 
 ## Switch Database configuration
-There are 2 configuration available:
+There are 2 configurations available:
  * an embedded in-memory H2 database with a test dataset loaded at runtime  
  * an Oracle server datasource (requires access to the server)  
 To choose which configuration to use, edit the application.properties file and change the spring.profiles.active property value.  
